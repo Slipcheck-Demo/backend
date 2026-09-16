@@ -1,6 +1,7 @@
 import Fastify, { type FastifyError } from "fastify";
 import { UpstreamError } from "./betway/errors";
 import { ApiError } from "./httpErrors";
+import { registerConvertRoute } from "./routes/convert";
 import { registerCreateRoute } from "./routes/create";
 import { registerResolveRoute } from "./routes/resolve";
 
@@ -11,6 +12,7 @@ export function buildApp() {
 
   registerResolveRoute(app);
   registerCreateRoute(app);
+  registerConvertRoute(app);
 
   app.setErrorHandler((error: FastifyError | ApiError | UpstreamError, _request, reply) => {
     if (error instanceof ApiError) {

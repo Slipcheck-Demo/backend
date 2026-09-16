@@ -1,3 +1,4 @@
+import cors from "@fastify/cors";
 import Fastify, { type FastifyError } from "fastify";
 import { UpstreamError } from "./betway/errors";
 import { ApiError } from "./httpErrors";
@@ -10,6 +11,11 @@ import { registerSportsRoute } from "./routes/sports";
 
 export function buildApp() {
   const app = Fastify({ logger: true });
+
+  // Web (Next.js) and mobile (Flutter) clients call this API from a different origin, both
+  // in dev and once deployed — allow the configured origin(s), default to local frontend dev.
+  const corsOrigin = (process.env.CORS_ORIGIN ?? "http://localhost:3001").split(",");
+  app.register(cors, { origin: corsOrigin });
 
   app.get("/health", async () => ({ status: "ok" }));
 

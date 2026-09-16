@@ -38,3 +38,46 @@ npm run dev                       # http://localhost:3000
 npm test          # Jest + Supertest, mocks all outbound Betway calls — no live network
 npm run typecheck
 ```
+
+## How the solution works
+
+Three repos, one product: `backend` (this one), `frontend` (Next.js, deployed to Vercel),
+`mobile` (Flutter, Android APK via Firebase App Distribution). Full diagrams in
+`docs/architecture.md`; this is the short prose version.
+
+**The core problem**: Betway Nigeria has no public API. Booking codes are produced/consumed
+by an anonymous endpoint the website itself calls (`docs/betway-api.md`), reverse-engineered
+by watching the site's own network traffic. Everything this product does is a thin,
+validated layer on top of two calls: `FindBookABet` (decode a code into its selections) and
+`BookABet` (encode a set of outcome ids into a new code).
+
+**Backend is the only thing that talks to Betway.** Neither client calls it directly — this
+avoids each client independently reverse-engineering the same undocumented contract, and
+keeps CORS a solved problem in one place (`src/app.ts`). It's intentionally stateless: no
+database, because nothing here needs one — every slip is decoded fresh from Betway on each
+request, there are no user accounts, and the one thing that *could* go in a database (a log
+of every request) was never read by anything, so it was cut rather than shipped as dead
+weight.
+
+**Three operations, one shared normalization step**: decode, create (encode), and convert
+(decode → drop stale legs → re-encode) all funnel through the same `normalizeSelection` /
+`isLegBettable` logic (`src/domain/`), because Betway's raw response conflates "this leg is
+still bettable" across six different signals (market/selection suspended, event started,
+etc.) — see `docs/betway-api.md` for the full enumeration. Getting this list right was the
+single trickiest part of the whole build: it's not documented anywhere, and getting it wrong
+either shows a dead leg as live (user generates a slip Betway rejects) or a live leg as dead
+(user loses a leg that was actually fine).
+
+**Frontend** (`../frontend`) is the full experience — Decode, Create (sport → match → market
+picker), Convert — built against the same design tokens as mobile (`../docs/design-tokens.md`)
+so the two clients read as one product, not two separate builds.
+
+**Mobile** (`../mobile`) is deliberately Decode-only, per the assessment's explicit "a rough
+one-screen version is sufficient" — same backend contract, `dio`/`retrofit` instead of
+`fetch`, no CORS concern since it's not a browser.
+
+**Deployment**: backend + this repo run on a Hetzner VPS behind an isolated Caddy instance
+terminating TLS via a Let's Encrypt cert issued for a `sslip.io` hostname (no owned domain
+was available) — kept deliberately separate from the other Caddy already running on that box
+for an unrelated project, rather than editing shared production config. Frontend is a
+standalone deploy on Vercel. Neither deployment step required provisioning a database.

@@ -1,9 +1,11 @@
 # Betway Nigeria — API contract (our own verification)
 
 > Every request below was run live on 2026-09-16 via `curl`, no cookies/auth, straight from
-> a home machine (not a browser). This is the single source of truth for the implementation;
-> look. Below, three nuances worth calling out explicitly:> three places where we **recorded a discrepancy** — these need to be accounted for in the
-> backend.
+> a home machine (not a browser), by watching the network traffic Betway's own website
+> generates while decoding/creating/browsing a slip and replaying the same calls directly.
+> This is the single source of truth for the implementation. Below, three nuances that
+> aren't obvious from the response shapes alone are called out explicitly — they need to be
+> accounted for in the backend.
 
 ## 1. Domains (confirmed)
 
@@ -80,26 +82,24 @@ service once responded not with the expected `BookABetInvalidCode` but with:
 ```
 
 `400`. After a ~5s pause, the same request body worked normally. **Conclusion for the
-backend:** our own requests to decode/encode need light throttling or retry-with-backoff,
-`6000359`
-should be mapped the same way as a transient error (retry), not as `invalid_code`.
+backend:** our own requests to decode/encode need light throttling or retry-with-backoff.
+`6000359` should be mapped the same way as a transient error (retry), not as `invalid_code`.
 
-### ⚠️ Discrepancy #2 — decoding a "dead" outcomeId
+### ⚠️ Nuance #2 — decoding a "dead" outcomeId
 
-A code created from a non-existent `outcomeId` (`00000000000`) does not decode
-as `200 {"selections": []}`. In our check (2026-09-16), the same `outcomeId` produced **the
-same code** `BW6E59F360` (see §3 — encode is deterministic by content), but decoding it
-returned:
+A code created from a non-existent `outcomeId` (`00000000000`) is a well-formed code
+(`BW6E59F360` — see §3, encode is deterministic by content), but decoding it doesn't return
+`200 {"selections": []}`. It returns:
 
 ```json
 { "errorCode": 6000332, "errorMessage": "BookABetSelectionsExpired", "responseMetadata": null }
 ```
 
-`400`, not `200` with an empty array. **Conclusion:** both outcomes (an empty `selections`
-array and `BookABetSelectionsExpired`) need to be treated the same way by the backend — "the
-code exists, but there's nothing bettable on it" (`invalid_code`/dead-slip) — without relying
-on one specific response shape. Live behavior may have changed on Betway's side between
-2026-09-03 and 2026-09-16 — don't rely on a fixed shape for this edge case.
+`400`, not `200` with an empty array. **Conclusion:** both possible shapes (an empty
+`selections` array and `BookABetSelectionsExpired`) need to be treated the same way by the
+backend — "the code exists, but there's nothing bettable on it" (`invalid_code`/dead-slip) —
+without relying on one specific response shape, since Betway's own behavior here isn't fixed
+(observed both forms across different checks).
 
 ## 3. ENCODE — `POST .../v1/Betting/BookABet`
 
@@ -120,13 +120,12 @@ Response (`200`, confirmed): `{ "bookingCode": "BW72B383EE" }`.
 **Round-trip decode ⇄ encode confirmed** — the created code immediately decoded with the
 same `outcomeId`/`eventId`/`marketId` (see §2).
 
-**Encode is deterministic by the content of `outcomes`** (our own observation, not explicit
-: re-sending `{"outcomeId":"00000000000"}` — the same non-existent id
-reference used on 2026-09-03 — returned **the exact same** `bookingCode: "BW6E59F360"` as
-the returned the same code both times. So the code isn't a random token, it's derived
-deterministically (likely a hash/id) from the set of outcome ids. Worth accounting for in
-tests: two identical encode requests will produce the same code — that's not a race
-condition or a bug.
+**Encode is deterministic by the content of `outcomes`** (confirmed by repeating the same
+call twice): re-sending `{"outcomeId":"00000000000"}` — the same non-existent id — returned
+**the exact same** `bookingCode: "BW6E59F360"` both times, days apart. So the code isn't a
+random token, it's derived deterministically (likely a hash/id) from the set of outcome ids.
+Worth accounting for in tests: two identical encode requests will produce the same code —
+that's not a race condition or a bug.
 
 An empty `outcomes` array (confirmed, `400`):
 
@@ -162,10 +161,10 @@ has 3 outcomes, indices `[2,3,4]` (home, draw, away), the middle one is always `
 `outcome.sbv` is empty. The `outcomeId` suffixes `1,2,3` are an outcome-type code, not a
 position (see §7).
 
-A nuance worth flagging: in the current sample (2026-09-16), most soccer
-fixtures in the next few hours are **eSoccer** (`regionId: "esoccer"`), not live football.
-This is expected (eSoccer cycles roughly every ~15 minutes and dominates the "upcoming"
-window), but it's worth not being surprised by it when showing demo data.
+A nuance worth flagging: in the current sample (2026-09-16), most soccer fixtures in the
+next few hours are **eSoccer** (`regionId: "esoccer"`), not live football. This is expected
+(eSoccer cycles roughly every ~15 minutes and dominates the "upcoming" window), but it's
+worth not being surprised by it when showing demo data.
 
 ## 6. An event's full market list (squashed markets)
 
@@ -211,7 +210,7 @@ empty.
 
 ## 8. Public booking-code catalog — `GET apic.betwayafrica.com/api/v1/Widget/BookingCodes`
 
-### ⚠️ Discrepancy #3 — the catalog is currently empty
+### ⚠️ Nuance #3 — the catalog is currently empty
 
 ```
 GET https://apic.betwayafrica.com/api/v1/Widget/BookingCodes?skip=0&limit=6&source=sportsradar
@@ -220,9 +219,7 @@ GET https://apic.betwayafrica.com/api/v1/Widget/BookingCodes?skip=0&limit=6&sour
 
 Checked repeatedly (2026-09-16, with delays, with different combinations of query
 parameters, including without `source`, with `countryCode=NG`, with `limit=20`) — stably
-`total: 0`. Also note: the response
-shape uses (`"nextSubset"` instead of a plain paginated `skip`,
-though `skip`/`limit` are still accepted as query parameters).
+`total: 0`.
 
 **Open question — doesn't block launch, but affects design:** this endpoint can't be relied
 on for "popular codes" in the empty state of the Decode screen right now. Before
@@ -235,13 +232,12 @@ generate ourselves from live upcoming events instead (§5), as a demo fallback.
 - Cloudflare protects the HTML document, not the JSON API — confirmed on every endpoint
   checked (GET and POST).
 - All requests are anonymous, no auth/signature/captcha.
-- Throttling was observed on decode (see Discrepancy #1) — build in retry-with-backoff.
+- Throttling was observed on decode (see Nuance #1) — build in retry-with-backoff.
 
 ## 10. Summary for the backend implementation
 
 All three operations (decode, encode, sport→event→market→outcome browse) are confirmed to
-be anonymous, reachable with a plain `fetch`/`curl` from Node with no headless browser. In
-
+be anonymous, reachable with a plain `fetch`/`curl` from Node with no headless browser.
 
 1. **Retry/backoff** on decode is needed not just for one transient 400, but also for
    `BookABetLimitExceeded` (6000359) — throttle our own outgoing requests to Betway.

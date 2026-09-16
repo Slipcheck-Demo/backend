@@ -50,7 +50,7 @@ sequenceDiagram
         B-->>C: 200 { bookingCode, selections, totalOdds }
     else wrong / expired / empty slip
         BW-->>B: 400 BookABetInvalidCode/SelectionsExpired<br/>or 200 with selections: []
-        Note over B: all three collapse to one case —<br/>docs/betway-api.md §2 Discrepancy #2
+        Note over B: all three collapse to one case —<br/>docs/betway-api.md §2 Nuance #2
         B-->>C: 404 { error: "invalid_code" }
     end
     C-->>U: Render slip card / error banner

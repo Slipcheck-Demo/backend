@@ -35,7 +35,7 @@ async function fetchOnce(url: string, init?: RequestInit): Promise<Response> {
 }
 
 // docs/betway-api.md §2 records a transient 400 that succeeded on immediate retry, and
-// Расхождение №1 records a rate limit (errorCode 6000359) under rapid requests. Both look
+// Discrepancy #1 records a rate limit (errorCode 6000359) under rapid requests. Both look
 // like "the first attempt failed for a reason that isn't really about this request" — so
 // every call gets one retry before its result is treated as final.
 async function fetchWithRetry(url: string, init?: RequestInit): Promise<Response> {

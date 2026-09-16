@@ -25,7 +25,7 @@ export interface DecodeSelection {
   sportId?: string;
 }
 
-// docs/betway-api.md §2 (Расхождение №2): a "dead" booking code shows up as either a 200
+// docs/betway-api.md §2 (Discrepancy #2): a "dead" booking code shows up as either a 200
 // with an empty selections array, or a 400 BookABetInvalidCode/BookABetSelectionsExpired.
 // The client folds all three into one case so callers never branch on which shape it was.
 export type DecodeResult =

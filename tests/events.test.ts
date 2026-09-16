@@ -3,9 +3,6 @@ import { buildApp } from "../src/app";
 import { getUpcomingEvents } from "../src/betway/client";
 
 jest.mock("../src/betway/client");
-jest.mock("../src/db/client", () => ({
-  prisma: { bookingCodeRequest: { create: jest.fn().mockResolvedValue({}) } },
-}));
 
 const mockedGetUpcomingEvents = getUpcomingEvents as jest.MockedFunction<typeof getUpcomingEvents>;
 

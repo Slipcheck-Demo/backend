@@ -4,9 +4,6 @@ import { getSports } from "../src/betway/client";
 import { UpstreamError } from "../src/betway/errors";
 
 jest.mock("../src/betway/client");
-jest.mock("../src/db/client", () => ({
-  prisma: { bookingCodeRequest: { create: jest.fn().mockResolvedValue({}) } },
-}));
 
 const mockedGetSports = getSports as jest.MockedFunction<typeof getSports>;
 

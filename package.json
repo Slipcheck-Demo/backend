@@ -7,25 +7,18 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
     "dotenv": "^17.4.2",
-    "fastify": "^5.12.5",
-    "pg": "^8.23.0"
+    "fastify": "^5.12.5"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
-    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "jest": "^30.5.1",
-    "prisma": "^7.10.0",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.12",
     "tsx": "^4.23.13",

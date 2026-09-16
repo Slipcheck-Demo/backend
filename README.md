@@ -2,11 +2,11 @@
 
 Node.js/TypeScript (Fastify) service for the Betway Nigeria booking-code product. Sits
 between the web/mobile clients and Betway's anonymous, unofficial API — decode, encode
-(create), and convert operations over booking codes, plus a Postgres log of every request.
+(create), and convert operations over booking codes. Stateless: no database — every slip is
+re-fetched live from Betway on each request, so there's nothing to persist.
 
 API contract: `docs/betway-api.md` (our own verified reverse-engineering, 2026-09-16).
-Architecture (system diagram, decode/create/convert sequence diagrams, ERD):
-`docs/architecture.md`.
+Architecture (system diagram, decode/create/convert sequence diagrams): `docs/architecture.md`.
 
 ## Endpoints
 
@@ -27,9 +27,7 @@ own error codes/messages are never forwarded to clients.
 ## Dev setup
 
 ```
-docker compose up -d              # Postgres on localhost:5433
 cp .env.example .env
-npx prisma migrate dev            # creates the BookingCodeRequest table
 npm install
 npm run dev                       # http://localhost:3000
 ```

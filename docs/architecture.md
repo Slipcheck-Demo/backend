@@ -15,22 +15,20 @@ graph TD
     end
 
     Backend["backend (Fastify)<br/>resolve / create / convert<br/>+ sports / events / markets proxy"]
-    DB[("Postgres<br/>BookingCodeRequest")]
     Betway["Betway Nigeria<br/>anonymous web-client API"]
 
     Web -- "HTTPS JSON (CORS)" --> Backend
     Mobile -- "HTTPS JSON (dio/retrofit)" --> Backend
     Backend -- "FindBookABet / BookABet /<br/>sports / events / markets" --> Betway
-    Backend -- "fire-and-forget<br/>request history log" --> DB
 ```
 
 Why this shape:
 - **One backend, two clients.** Web and mobile share one contract (`docs/betway-api.md`
   §10) instead of each reverse-engineering Betway independently — CORS only matters for
   the browser client (`src/app.ts`'s `CORS_ORIGIN`), Dio on mobile isn't subject to it.
-- **History logging is fire-and-forget** (`src/db/logRequest.ts`) — a DB hiccup can never
-  turn an otherwise-successful Betway round trip into a 500, and it doesn't add a blocking
-  round trip to the response path.
+- **No database.** Every slip is decoded live from Betway on each request; there's no user
+  data or state worth persisting, so there's nothing a database would do here beyond
+  logging requests nobody reads — the take-home only asks for one "if required".
 - **Mobile is Decode-only** — the take-home explicitly allows "a rough one-screen version"
   for the Flutter delivery.
 
@@ -55,7 +53,6 @@ sequenceDiagram
         Note over B: all three collapse to one case —<br/>docs/betway-api.md §2 Расхождение №2
         B-->>C: 404 { error: "invalid_code" }
     end
-    B-)DB: log request (fire-and-forget)
     C-->>U: Render slip card / error banner
 ```
 
@@ -80,7 +77,6 @@ sequenceDiagram
     else ok
         B-->>C: 200 { bookingCode, selections, totalOdds }
     end
-    B-)B: log request (fire-and-forget)
 ```
 
 ## Convert flow
@@ -103,33 +99,4 @@ sequenceDiagram
         BW-->>B: { bookingCode: resultCode }
         B-->>C: 200 { bookingCode: resultCode,<br/>selections, removedLegs, totalOdds }
     end
-    B-)B: log request (fire-and-forget)
 ```
-
-## Data model
-
-One table: a log of every decode/create/convert request the backend has handled. No user
-accounts, no cached slip data — slips are always re-fetched live from Betway.
-
-```mermaid
-erDiagram
-
-    BookingCodeRequest {
-        text id PK
-        text operation
-        text bookingCode
-        text resultCode
-        text status
-        int legCount
-        timestamp createdAt
-    }
-```
-
-Generated via `.claude/skills/prisma-postgres-history/scripts/erd_generator.py` against a
-`prisma migrate diff` DDL dump of `prisma/schema.prisma`. A single-entity diagram is the
-correct output here, not an incomplete one — see that skill's SKILL.md.
-
-- `operation`: `"resolve" | "create" | "convert"`
-- `bookingCode`: input code for resolve/convert; output code for create
-- `resultCode`: the new code produced by convert (null for resolve/create)
-- `status`: `"ok" | "invalid_code" | "conflicting_selections" | "upstream_error"`

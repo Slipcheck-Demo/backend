@@ -5,9 +5,6 @@ import { UpstreamError } from "../src/betway/errors";
 import type { DecodeSelection } from "../src/betway/types";
 
 jest.mock("../src/betway/client");
-jest.mock("../src/db/client", () => ({
-  prisma: { bookingCodeRequest: { create: jest.fn().mockResolvedValue({}) } },
-}));
 
 const mockedFindBookABet = findBookABet as jest.MockedFunction<typeof findBookABet>;
 

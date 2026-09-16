@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { findBookABet } from "../betway/client";
 import { prisma } from "../db/client";
+import { normalizeSelection } from "../domain/normalizeSelection";
 import { calculateTotalOdds } from "../domain/odds";
-import { isLegBettable } from "../domain/staleness";
 import { InvalidCodeError } from "../httpErrors";
 
 interface ResolveBody {
@@ -34,20 +34,7 @@ export function registerResolveRoute(app: FastifyInstance): void {
         throw new InvalidCodeError();
       }
 
-      // docs/betway-api.md §2: outcomeName carries a trailing space on Totals ("Over ") and
-      // isn't self-describing alone; marketName is already the qualified display string, so
-      // only outcomeName needs trimming here.
-      const selections = result.selections.map((selection) => ({
-        outcomeId: selection.outcomeId,
-        marketId: selection.marketId,
-        marketName: selection.marketName,
-        outcomeName: selection.outcomeName.trim(),
-        eventId: selection.eventId,
-        eventName: selection.eventName,
-        eventEpoch: selection.eventEpoch,
-        priceDecimal: selection.priceDecimal,
-        isBettable: isLegBettable(selection),
-      }));
+      const selections = result.selections.map(normalizeSelection);
 
       await prisma.bookingCodeRequest.create({
         data: {

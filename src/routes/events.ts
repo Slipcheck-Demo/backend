@@ -48,6 +48,7 @@ export function registerEventsRoute(app: FastifyInstance): void {
           league: event.league,
           region: event.region,
           expectedStartEpoch: event.expectedStartEpoch,
+          isActive: event.isActive,
           isLive: event.isLive,
           markets: (marketsByEventId.get(event.eventId) ?? []).map(({ market, outcomes }) => ({
             marketId: market.marketId,

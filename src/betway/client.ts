@@ -19,15 +19,30 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// A network-level failure (DNS, connection refused/reset, timeout) makes `fetch` itself
+// reject rather than resolve with a non-ok Response. Treat that the same as a non-ok
+// response for retry purposes, and surface it as an UpstreamError like every other upstream
+// failure instead of letting a raw TypeError escape to the app-level error handler (which
+// would otherwise map it to a generic 500 instead of 502, and skip the upstream_error log).
+async function fetchOnce(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    throw new UpstreamError(
+      `network request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
 // docs/betway-api.md §2 records a transient 400 that succeeded on immediate retry, and
 // Расхождение №1 records a rate limit (errorCode 6000359) under rapid requests. Both look
 // like "the first attempt failed for a reason that isn't really about this request" — so
 // every call gets one retry before its result is treated as final.
 async function fetchWithRetry(url: string, init?: RequestInit): Promise<Response> {
-  const first = await fetch(url, init);
+  const first = await fetchOnce(url, init);
   if (first.ok) return first;
   await delay(RETRY_DELAY_MS);
-  return fetch(url, init);
+  return fetchOnce(url, init);
 }
 
 interface BetwayErrorBody {

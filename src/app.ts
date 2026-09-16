@@ -14,7 +14,14 @@ export function buildApp() {
 
   // Web (Next.js) and mobile (Flutter) clients call this API from a different origin, both
   // in dev and once deployed — allow the configured origin(s), default to local frontend dev.
-  const corsOrigin = (process.env.CORS_ORIGIN ?? "http://localhost:3001").split(",");
+  // Falls back to the default whenever the parsed list ends up empty (unset, "", or
+  // whitespace/commas only) rather than just checking the raw env var is non-empty, so a
+  // misconfigured CORS_ORIGIN can't silently resolve to "block every origin".
+  const parsedCorsOrigin = (process.env.CORS_ORIGIN ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  const corsOrigin = parsedCorsOrigin.length > 0 ? parsedCorsOrigin : ["http://localhost:3001"];
   app.register(cors, { origin: corsOrigin });
 
   app.get("/health", async () => ({ status: "ok" }));

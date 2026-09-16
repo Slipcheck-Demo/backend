@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { bookABet, findBookABet } from "../betway/client";
-import { prisma } from "../db/client";
+import { UpstreamError } from "../betway/errors";
+import { logRequest } from "../db/logRequest";
 import { normalizeSelection } from "../domain/normalizeSelection";
 import { calculateTotalOdds } from "../domain/odds";
-import { isLegBettable } from "../domain/staleness";
 import { InvalidCodeError } from "../httpErrors";
 
 interface ConvertBody {
@@ -26,49 +26,49 @@ export function registerConvertRoute(app: FastifyInstance): void {
     },
     async (request) => {
       const { bookingCode } = request.body;
-      const decoded = await findBookABet(bookingCode);
 
-      if (decoded.kind === "dead") {
-        await prisma.bookingCodeRequest.create({
-          data: { operation: "convert", bookingCode, status: "invalid_code" },
-        });
-        throw new InvalidCodeError();
-      }
+      try {
+        const decoded = await findBookABet(bookingCode);
 
-      const bettable = decoded.selections.filter(isLegBettable);
-      const dead = decoded.selections.filter((selection) => !isLegBettable(selection));
+        if (decoded.kind === "dead") {
+          logRequest({ operation: "convert", bookingCode, status: "invalid_code" });
+          throw new InvalidCodeError();
+        }
 
-      if (bettable.length === 0) {
-        // Every leg failed the six staleness signals — there's nothing left to re-encode.
-        await prisma.bookingCodeRequest.create({
-          data: { operation: "convert", bookingCode, status: "invalid_code", legCount: 0 },
-        });
-        throw new InvalidCodeError();
-      }
+        const normalized = decoded.selections.map(normalizeSelection);
+        const selections = normalized.filter((selection) => selection.isBettable);
+        const removedLegs = normalized.filter((selection) => !selection.isBettable);
 
-      const { bookingCode: resultCode } = await bookABet(
-        bettable.map((selection) => selection.outcomeId),
-      );
+        if (selections.length === 0) {
+          // Every leg failed the six staleness signals — there's nothing left to re-encode.
+          logRequest({ operation: "convert", bookingCode, status: "invalid_code", legCount: 0 });
+          throw new InvalidCodeError();
+        }
 
-      await prisma.bookingCodeRequest.create({
-        data: {
+        const { bookingCode: resultCode } = await bookABet(
+          selections.map((selection) => selection.outcomeId),
+        );
+
+        logRequest({
           operation: "convert",
           bookingCode,
           resultCode,
           status: "ok",
-          legCount: bettable.length,
-        },
-      });
+          legCount: selections.length,
+        });
 
-      const selections = bettable.map(normalizeSelection);
-      const removedLegs = dead.map(normalizeSelection);
-
-      return {
-        bookingCode: resultCode,
-        selections,
-        removedLegs,
-        totalOdds: calculateTotalOdds(selections.map((selection) => selection.priceDecimal)),
-      };
+        return {
+          bookingCode: resultCode,
+          selections,
+          removedLegs,
+          totalOdds: calculateTotalOdds(selections.map((selection) => selection.priceDecimal)),
+        };
+      } catch (err) {
+        if (err instanceof UpstreamError) {
+          logRequest({ operation: "convert", bookingCode, status: "upstream_error" });
+        }
+        throw err;
+      }
     },
   );
 }

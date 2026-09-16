@@ -5,7 +5,8 @@ between the web/mobile clients and Betway's anonymous, unofficial API — decode
 (create), and convert operations over booking codes, plus a Postgres log of every request.
 
 API contract: `docs/betway-api.md` (our own verified reverse-engineering, 2026-09-16).
-Data model: `docs/architecture.md`.
+Architecture (system diagram, decode/create/convert sequence diagrams, ERD):
+`docs/architecture.md`.
 
 ## Endpoints
 

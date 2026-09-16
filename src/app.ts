@@ -3,7 +3,10 @@ import { UpstreamError } from "./betway/errors";
 import { ApiError } from "./httpErrors";
 import { registerConvertRoute } from "./routes/convert";
 import { registerCreateRoute } from "./routes/create";
+import { registerEventMarketsRoute } from "./routes/eventMarkets";
+import { registerEventsRoute } from "./routes/events";
 import { registerResolveRoute } from "./routes/resolve";
+import { registerSportsRoute } from "./routes/sports";
 
 export function buildApp() {
   const app = Fastify({ logger: true });
@@ -13,6 +16,9 @@ export function buildApp() {
   registerResolveRoute(app);
   registerCreateRoute(app);
   registerConvertRoute(app);
+  registerSportsRoute(app);
+  registerEventsRoute(app);
+  registerEventMarketsRoute(app);
 
   app.setErrorHandler((error: FastifyError | ApiError | UpstreamError, _request, reply) => {
     if (error instanceof ApiError) {
